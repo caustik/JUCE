@@ -146,11 +146,8 @@ namespace
                 }
             }
 
-            if (scanJUCEPath)
-                ProjucerApplication::getApp().rescanJUCEPathModules();
-
-            if (scanUserPaths)
-                ProjucerApplication::getApp().rescanUserPathModules();
+            ProjucerApplication::getApp().rescanJUCEPathModules();
+            ProjucerApplication::getApp().rescanUserPathModules();
         }
 
         void tryToFixMissingModuleDependencies()
