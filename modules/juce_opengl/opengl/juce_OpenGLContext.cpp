@@ -404,16 +404,6 @@ public:
             const auto currentAreaAndScale = areaAndScale.get();
             const auto viewportArea = currentAreaAndScale.area;
 
-            if (context.renderer != nullptr)
-            {
-                OpenGLRendering::SavedBinding<OpenGLRendering::TraitsVAO> vaoBinding;
-
-                glViewport (0, 0, viewportArea.getWidth(), viewportArea.getHeight());
-                context.currentRenderScale = currentAreaAndScale.scale;
-                context.renderer->renderOpenGL();
-                clearGLError();
-            }
-
             if (context.renderComponents)
             {
                 if (isUpdating)
@@ -426,9 +416,25 @@ public:
                     scopedLock.reset();
                     lastMMLockReleaseTime = std::chrono::steady_clock::now();
                 }
+            }
+
+            if (context.renderer != nullptr)
+            {
+                OpenGLRendering::SavedBinding<OpenGLRendering::TraitsVAO> vaoBinding;
+
+                auto drawComponentBufferProxy = [&]() {
+                    drawComponentBuffer();
+                };
 
                 glViewport (0, 0, viewportArea.getWidth(), viewportArea.getHeight());
-                drawComponentBuffer();
+                context.currentRenderScale = currentAreaAndScale.scale;
+                context.renderer->renderOpenGL(drawComponentBufferProxy);
+                clearGLError();
+            }
+
+            if (context.renderComponents)
+            {
+                glViewport (0, 0, viewportArea.getWidth(), viewportArea.getHeight());
             }
         }
 
