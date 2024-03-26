@@ -395,25 +395,25 @@ public:
             const auto currentAreaAndScale = areaAndScale.get();
             const auto viewportArea = currentAreaAndScale.area;
 
-            if (context.renderComponents)
-            {
-                if (isUpdating)
-                {
-                    paintComponent (currentAreaAndScale);
-
-                    if (! isFlagSet (state, StateFlags::initialised))
-                        return RenderStatus::noWork;
-
-                    scopedLock.reset();
-                    lastMMLockReleaseTime = std::chrono::steady_clock::now();
-                }
-            }
-
             if (context.renderer != nullptr)
             {
                 OpenGLRendering::SavedBinding<OpenGLRendering::TraitsVAO> vaoBinding;
 
                 auto drawComponentBufferProxy = [&]() {
+                    if (context.renderComponents)
+                    {
+                        if (isUpdating)
+                        {
+                            paintComponent (currentAreaAndScale);
+
+                            if (! isFlagSet (state, StateFlags::initialised))
+                                return RenderStatus::noWork;
+
+                            scopedLock.reset();
+                            lastMMLockReleaseTime = std::chrono::steady_clock::now();
+                        }
+                    }
+
                     drawComponentBuffer();
                 };
 
