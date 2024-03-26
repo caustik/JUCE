@@ -45,6 +45,7 @@ struct IGainReductionInfo: Steinberg::FUnknown
 };
 
 DECLARE_CLASS_IID (IGainReductionInfo, 0x8e3c292c, 0x95924f9d, 0xb2590b1e, 0x100e4198)
+DEF_CLASS_IID(IGainReductionInfo)
 
 } // namespace Presonus
 
