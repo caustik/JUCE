@@ -97,7 +97,7 @@ private:
     int frameCounter = 0;
 
     void newOpenGLContextCreated() override;
-    void renderOpenGL() override;
+    void renderOpenGL(std::function<void()> componentContext) override;
     void openGLContextClosing() override;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OpenGLAppComponent)
