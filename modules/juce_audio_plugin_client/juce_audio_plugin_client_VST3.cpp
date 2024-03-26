@@ -54,6 +54,7 @@ JUCE_BEGIN_NO_SANITIZE ("vptr")
 #include <juce_audio_processors/format_types/juce_LegacyAudioParameter.cpp>
 #include <juce_audio_processors/utilities/juce_FlagCache.h>
 #include <juce_audio_processors/format_types/juce_VST3Common.h>
+#include <juce_audio_processors/format_types/pslextensions/ipslgainreduction.h>
 
 #ifndef JUCE_VST3_CAN_REPLACE_VST2
  #define JUCE_VST3_CAN_REPLACE_VST2 1
@@ -729,16 +730,29 @@ class JuceVST3EditController final : public Vst::EditController,
                                     #if JucePlugin_Enable_ARA
                                      public Presonus::IPlugInViewEmbedding,
                                     #endif
+                                     public Presonus::IGainReductionInfo,
                                      public AudioProcessorListener,
                                      private ComponentRestarter::Listener
 {
 public:
+    AudioProcessorParameter *gainReductionParam = nullptr;
     explicit JuceVST3EditController (Vst::IHostApplication* host)
     {
         if (host != nullptr)
             host->queryInterface (FUnknown::iid, (void**) &hostContext);
 
         blueCatPatchwork |= isBlueCatHost (host);
+    }
+
+    double PLUGIN_API getGainReductionValueInDb() override
+    {
+        if (gainReductionParam != nullptr) {
+            constexpr float gainReductionMinMax = 35.0f;
+
+            return (gainReductionParam->getValue() - 0.5f) * gainReductionMinMax;
+        }
+
+        return 0.0;
     }
 
     //==============================================================================
@@ -763,6 +777,14 @@ public:
                                                                       &VST3ClientExtensions::queryIEditController);
 
         const auto juceProvidedInterface = queryInterfaceInternal (targetIID);
+
+        if (gainReductionParam != nullptr) {
+            if (doUIDsMatch(targetIID, Presonus::IGainReductionInfo::iid)) {
+                addRef();
+                *obj = dynamic_cast<Presonus::IGainReductionInfo*> (this);
+                return Steinberg::kResultOk;
+            }
+        }
 
         return extractResult (userProvidedInterface, juceProvidedInterface, obj);
     }
@@ -1560,6 +1582,11 @@ private:
 
                     parameters.addParameter (new Param (*this, *juceParam, vstParamID, unitID,
                                                         (vstParamID == audioProcessor->getBypassParamID())));
+
+                    if (((pluginInstance->getParameterCategory(i) & 0xffff0000) >> 16) == 2)
+                    {
+                        gainReductionParam = juceParam;
+                    }
                 }
 
                 const auto programParamId = audioProcessor->getProgramParamID();
