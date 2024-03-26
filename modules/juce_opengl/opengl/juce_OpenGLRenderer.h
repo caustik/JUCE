@@ -70,7 +70,7 @@ public:
         result, taking a MessageManagerLock inside renderOpenGL() may cause a
         hierarchical deadlock.
     */
-    virtual void renderOpenGL() = 0;
+    virtual void renderOpenGL(std::function<void()> componentContext = nullptr) = 0;
 
     /** Called when the current openGL context is about to close.
         You can use this opportunity to release any GL resources that you may have
