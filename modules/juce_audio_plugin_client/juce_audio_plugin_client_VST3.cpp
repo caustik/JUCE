@@ -796,17 +796,6 @@ public:
         return 0.0;
     }
 
-    double PLUGIN_API getGainReductionValueInDb() override
-    {
-        if (gainReductionParam != nullptr) {
-            constexpr float gainReductionMinMax = 35.0f;
-
-            return (gainReductionParam->getValue() - 0.5f) * gainReductionMinMax;
-        }
-
-        return 0.0;
-    }
-
     //==============================================================================
 
    #if JUCE_VST3_CAN_REPLACE_VST2
