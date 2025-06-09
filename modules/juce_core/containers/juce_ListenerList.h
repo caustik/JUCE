@@ -229,21 +229,26 @@ public:
                                const BailOutCheckerType& bailOutChecker,
                                Callback&& callback)
     {
-       #if JUCE_ASSERTIONS_ENABLED_OR_LOGGED
-        const ScopedTryLock callCheckedExcludingLock (*callCheckedExcludingMutex);
-
-        // If you hit this assertion it means you're trying to call the listeners from multiple
-        // threads concurrently. If you need to do this either use a LightweightListenerList, for a
-        // lock free option, or a ThreadSafeListenerList if you also need the extra guarantees
-        // provided by ListenerList. See the class descriptions for more details.
-        jassert (callCheckedExcludingLock.isLocked());
-       #endif
-
         if (! initialised())
             return;
 
         const auto localListeners = listeners;
         const ScopedLockType lock { localListeners->getLock() };
+
+       #if JUCE_ASSERTIONS_ENABLED_OR_LOGGED
+        {
+            // Keep a reference to the mutex to protect against the case where this list gets deleted
+            // during a callback.
+            auto localMutexPtr = callCheckedExcludingMutex;
+            const ScopedTryLock callCheckedExcludingLock (*localMutexPtr);
+
+            // If you hit this assertion it means you're trying to call the listeners from multiple
+            // threads concurrently. If you need to do this either use a LightweightListenerList, for a
+            // lock free option, or a ThreadSafeListenerList if you also need the extra guarantees
+            // provided by ListenerList. See the class descriptions for more details.
+            jassert (callCheckedExcludingLock.isLocked());
+        }
+       #endif
 
         Iterator it{};
         it.end = localListeners->size();
@@ -396,9 +401,9 @@ private:
     }
 
    #if JUCE_ASSERTIONS_ENABLED_OR_LOGGED
-    // using a unique_ptr helps keep the size of this class down to prevent excessive stack sizes
+    // using a shared_ptr helps keep the size of this class down to prevent excessive stack sizes
     // due to objects that contain a ListenerList being created on the stack
-    std::unique_ptr<CriticalSection> callCheckedExcludingMutex = std::make_unique<CriticalSection>();
+    std::shared_ptr<CriticalSection> callCheckedExcludingMutex = std::make_shared<CriticalSection>();
    #endif
 
     //==============================================================================
