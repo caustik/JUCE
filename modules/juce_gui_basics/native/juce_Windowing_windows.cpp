@@ -4706,7 +4706,7 @@ ModifierKeys HWNDComponentPeer::modifiersAtLastCallback;
 
 ComponentPeer* Component::createNewPeer (int styleFlags, void* parentHWND)
 {
-    return new HWNDComponentPeer { *this, styleFlags, (HWND) parentHWND, false, 1 };
+    return new HWNDComponentPeer { *this, styleFlags, (HWND) parentHWND, false, 0 /* caustik: disable Direct2D which is a piece of shit*/ };
 }
 
 Image createSnapshotOfNativeWindow (void* nativeWindowHandle)
