@@ -4657,8 +4657,7 @@ extern bool juce_isRunningInWine();
 
 ComponentPeer* Component::createNewPeer (int styleFlags, void* parentHWND)
 {
-    const auto renderer = juce_isRunningInWine() ? 0 : 1;
-    return new HWNDComponentPeer { *this, styleFlags, (HWND) parentHWND, false, renderer };
+    return new HWNDComponentPeer { *this, styleFlags, (HWND) parentHWND, false, 0 /* caustik: disable Direct2D */ };
 }
 
 Image createSnapshotOfNativeWindow (void* nativeWindowHandle)
