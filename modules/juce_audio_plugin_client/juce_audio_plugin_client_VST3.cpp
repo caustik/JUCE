@@ -67,7 +67,7 @@ JUCE_BEGIN_NO_SANITIZE ("vptr")
 #include <juce_audio_processors_headless/format_types/juce_VST3Utilities.h>
 #include <juce_audio_processors_headless/format_types/juce_VST3Common.h>
 #include <juce_audio_plugin_client/VST3/juce_VST3ModuleInfo.h>
-#include <juce_audio_processors/format_types/pslextensions/ipslgainreduction.h>
+#include <juce_audio_processors_headless/format_types/pslextensions/ipslgainreduction.h>
 
 #if JUCE_VST3_CAN_REPLACE_VST2 && ! JUCE_FORCE_USE_LEGACY_PARAM_IDS && ! JUCE_IGNORE_VST3_MISMATCHED_PARAMETER_ID_WARNING
 
