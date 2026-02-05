@@ -132,6 +132,10 @@ enum
     AUDCLNT_BUFFERFLAGS_SILENT = 2
 };
 
+#ifndef AUDCLNT_STREAMFLAGS_LOOPBACK
+ #define AUDCLNT_STREAMFLAGS_LOOPBACK 0x00020000
+#endif
+
 JUCE_IUNKNOWNCLASS (IPropertyStore, "886d8eeb-8cf2-4446-8d02-cdba1dbdcf99")
 {
     JUCE_COMCALL GetCount (DWORD*) = 0;
@@ -371,6 +375,19 @@ static String getDeviceID (IMMDevice* device)
     return s;
 }
 
+static constexpr auto loopbackDeviceIdPrefix = "loopback:";
+static constexpr int loopbackDeviceIdPrefixLength = 9;
+
+static bool isLoopbackDeviceId (const String& deviceId)
+{
+    return deviceId.startsWithIgnoreCase (loopbackDeviceIdPrefix);
+}
+
+static String getLoopbackTargetId (const String& deviceId)
+{
+    return deviceId.substring (loopbackDeviceIdPrefixLength);
+}
+
 static EDataFlow getDataFlow (const ComSmartPtr<IMMDevice>& device)
 {
     EDataFlow flow = eRender;
@@ -427,10 +444,12 @@ class WASAPIDeviceBase
 public:
     WASAPIDeviceBase (const ComSmartPtr<IMMDevice>& d,
                       WASAPIDeviceMode mode,
-                      WASAPIDeviceBaseDelegate& delegateIn)
+                      WASAPIDeviceBaseDelegate& delegateIn,
+                      bool loopbackIn = false)
         : device (d),
           deviceMode (mode),
-          delegate (delegateIn)
+          delegate (delegateIn),
+          isLoopback (loopbackIn)
     {
         clientEvent = CreateEvent (nullptr, false, false, nullptr);
 
@@ -550,6 +569,7 @@ public:
     WASAPIDeviceMode deviceMode;
 
     WASAPIDeviceBaseDelegate& delegate;
+    const bool isLoopback = false;
 
     double sampleRate = 0, defaultSampleRate = 0;
     int numChannels = 0, actualNumChannels = 0, maxNumChannels = 0, defaultNumChannels = 0;
@@ -846,6 +866,9 @@ private:
         if (supportsSampleRateConversion (deviceMode))
             streamFlags |= (0x80000000    /*AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM*/
                             | 0x8000000); /*AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY*/
+
+        if (isLoopback)
+            streamFlags |= AUDCLNT_STREAMFLAGS_LOOPBACK;
 
         return streamFlags;
     }
@@ -1687,6 +1710,13 @@ private:
         if (! check (enumerator.CoCreateInstance (__uuidof (MMDeviceEnumerator))))
             return false;
 
+        const auto inputIsLoopback = isLoopbackDeviceId (inputDeviceId);
+
+        if (inputIsLoopback && deviceMode != WASAPIDeviceMode::shared)
+            return false;
+
+        const auto inputTargetId = inputIsLoopback ? getLoopbackTargetId (inputDeviceId) : inputDeviceId;
+
         ComSmartPtr<IMMDeviceCollection> deviceCollection;
 
         if (! check (enumerator->EnumAudioEndpoints (eAll, DEVICE_STATE_ACTIVE, deviceCollection.resetAndGetPointerAddress())))
@@ -1711,8 +1741,12 @@ private:
 
             auto flow = getDataFlow (device);
 
-            if (deviceId == inputDeviceId && flow == eCapture)
-                inputDevice.reset (new WASAPIInputDevice (device, deviceMode, *this));
+            if (deviceId == inputTargetId
+                && ((! inputIsLoopback && flow == eCapture)
+                    || (inputIsLoopback && flow == eRender)))
+            {
+                inputDevice.reset (new WASAPIInputDevice (device, deviceMode, *this, inputIsLoopback));
+            }
             else if (deviceId == outputDeviceId && flow == eRender)
                 outputDevice.reset (new WASAPIOutputDevice (device, deviceMode, *this));
         }
@@ -1986,6 +2020,17 @@ private:
                 const int index = (deviceId == defaultRenderer) ? 0 : -1;
                 result.outputDeviceIds.insert (index, deviceId);
                 result.outputDeviceNames.insert (index, name);
+
+                if (deviceMode == WASAPIDeviceMode::shared && deviceId == defaultRenderer)
+                {
+                    auto loopbackName = name;
+                    if (loopbackName.isEmpty())
+                        loopbackName = deviceId;
+
+                    loopbackName = "Loopback: " + loopbackName;
+                    result.inputDeviceIds.add (String (loopbackDeviceIdPrefix) + deviceId);
+                    result.inputDeviceNames.add (loopbackName);
+                }
             }
             else if (flow == eCapture)
             {
