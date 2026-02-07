@@ -381,7 +381,9 @@ void LibraryModule::addBrowseableCode (ProjectExporter& exporter, const Array<Fi
     }
 
     sourceGroup.sortAlphabetically (true, true);
-    sourceGroup.addFileAtIndex (moduleHeader, -1, false);
+
+    auto headerPathWithinModule = build_tools::getRelativePathFrom (moduleHeader, localModuleFolder);
+    addFileWithGroups (sourceGroup, moduleFromProject.getChildFile (headerPathWithinModule), headerPathWithinModule);
 
     exporter.getModulesGroup().state.appendChild (sourceGroup.state.createCopy(), nullptr);
 }
