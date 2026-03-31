@@ -1376,6 +1376,42 @@ public:
     /** @internal */
     static void JUCE_CALLTYPE setTypeOfNextNewPlugin (WrapperType);
 
+    /** @internal */
+    struct VST3OutputParameterChange
+    {
+        int parameterIndex = -1;
+        float normalisedValue = 0.0f;
+        int sampleOffset = 0;
+    };
+
+    /** Adds an outgoing VST3 parameter change for the current processing block.
+
+        This is intended for processor-originated automation output from within
+        processBlock(). The VST3 wrapper will publish these points via
+        ProcessData::outputParameterChanges using the provided sample offsets.
+
+        The supplied value must be normalised to the range [0, 1]. The supplied
+        sample offset is relative to the start of the current block.
+
+        Currently only the VST3 wrapper consumes these points.
+    */
+    bool addVST3OutputParameterChange (int parameterIndex, float normalisedValue, int sampleOffset) noexcept;
+
+    /** Clears all outgoing VST3 parameter changes queued for the current block.
+
+        @internal
+    */
+    void clearVST3OutputParameterChanges() noexcept;
+
+    /** Returns the outgoing VST3 parameter changes queued for the current block.
+
+        @internal
+    */
+    const Array<VST3OutputParameterChange>& getVST3OutputParameterChanges() const noexcept
+    {
+        return vst3OutputParameterChanges;
+    }
+
 protected:
     /** Callback to query if the AudioProcessor supports a specific layout.
 
@@ -1603,6 +1639,7 @@ private:
 
     //==============================================================================
     Array<AudioProcessorListener*> listeners;
+    Array<VST3OutputParameterChange> vst3OutputParameterChanges;
     AudioProcessorEditor* activeEditor = nullptr;
     double currentSampleRate = 0;
     int blockSize = 0, latencySamples = 0;

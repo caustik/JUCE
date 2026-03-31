@@ -51,6 +51,8 @@ AudioProcessor::AudioProcessor()
 AudioProcessor::AudioProcessor (const BusesProperties& ioConfig)
     : wrapperType (wrapperTypeBeingCreated.get())
 {
+    vst3OutputParameterChanges.ensureStorageAllocated (64);
+
     for (auto& layout : ioConfig.inputLayouts)   createBus (true,  layout);
     for (auto& layout : ioConfig.outputLayouts)  createBus (false, layout);
 
@@ -1336,6 +1338,26 @@ void AudioProcessor::setParameter (int index, float newValue)
 {
     if (auto* p = getParamChecked (index))
         p->setValue (newValue);
+}
+
+bool AudioProcessor::addVST3OutputParameterChange (int parameterIndex, float normalisedValue, int sampleOffset) noexcept
+{
+    if (wrapperType != wrapperType_VST3)
+        return false;
+
+    if (! isPositiveAndBelow (parameterIndex, getParameters().size()))
+        return false;
+
+    if (sampleOffset < 0)
+        return false;
+
+    vst3OutputParameterChanges.add ({ parameterIndex, jlimit (0.0f, 1.0f, normalisedValue), sampleOffset });
+    return true;
+}
+
+void AudioProcessor::clearVST3OutputParameterChanges() noexcept
+{
+    vst3OutputParameterChanges.clearQuick();
 }
 
 float AudioProcessor::getParameterDefaultValue (int index)

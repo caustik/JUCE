@@ -3752,6 +3752,8 @@ public:
                 return kResultFalse;
         }
 
+        pluginInstance->clearVST3OutputParameterChanges();
+
         // If all of these are zero, the host is attempting to flush parameters without processing audio.
         if (data.numSamples != 0 || data.numInputs != 0 || data.numOutputs != 0)
         {
@@ -3762,6 +3764,19 @@ public:
 
         if (auto* changes = data.outputParameterChanges)
         {
+            for (const auto& change : pluginInstance->getVST3OutputParameterChanges())
+            {
+                const auto paramID = comPluginInstance->getVSTParamIDForIndex (change.parameterIndex);
+                const auto clampedOffset = jlimit (0, jmax ((int) data.numSamples - 1, 0), change.sampleOffset);
+                Steinberg::int32 queueIndex = 0;
+
+                if (auto* queue = changes->addParameterData (paramID, queueIndex))
+                {
+                    Steinberg::int32 pointIndex = 0;
+                    queue->addPoint (clampedOffset, change.normalisedValue, pointIndex);
+                }
+            }
+
             comPluginInstance->forAllChangedParameters ([&] (Vst::ParamID paramID, float value)
                                                         {
                                                             Steinberg::int32 queueIndex = 0;
