@@ -47,6 +47,23 @@ struct TextureInfo
     float fullWidthProportion, fullHeightProportion;
 };
 
+constexpr auto defaultGlyphCoverageGamma = 0.75f;
+
+static std::array<uint8, 256> makeGlyphGammaLookup (float gamma)
+{
+    gamma = jlimit (0.1f, 4.0f, gamma);
+
+    std::array<uint8, 256> lookup {};
+
+    for (size_t i = 0; i < lookup.size(); ++i)
+    {
+        const auto alpha = (float) i / 255.0f;
+        lookup[i] = (uint8) jlimit (0, 255, roundToInt (255.0f * std::pow (alpha, gamma)));
+    }
+
+    return lookup;
+}
+
 //==============================================================================
 // This list persists in the OpenGLContext, and will re-use cached textures which
 // are created from Images.
@@ -1066,8 +1083,8 @@ struct StateHelpers
     template <typename QuadQueueType>
     struct EdgeTableRenderer
     {
-        EdgeTableRenderer (QuadQueueType& q, PixelARGB c) noexcept
-            : quadQueue (q), colour (c)
+        EdgeTableRenderer (QuadQueueType& q, PixelARGB c, const std::array<uint8, 256>* glyphGammaLookupIn = nullptr) noexcept
+            : quadQueue (q), colour (c), glyphGammaLookup (glyphGammaLookupIn)
         {}
 
         void setEdgeTableYPos (int y) noexcept
@@ -1078,7 +1095,7 @@ struct StateHelpers
         void handleEdgeTablePixel (int x, int alphaLevel) noexcept
         {
             auto c = colour;
-            c.multiplyAlpha (alphaLevel);
+            c.multiplyAlpha (remapAlphaLevel (alphaLevel));
             quadQueue.add (x, currentY, 1, 1, c);
         }
 
@@ -1090,7 +1107,7 @@ struct StateHelpers
         void handleEdgeTableLine (int x, int width, int alphaLevel) noexcept
         {
             auto c = colour;
-            c.multiplyAlpha (alphaLevel);
+            c.multiplyAlpha (remapAlphaLevel (alphaLevel));
             quadQueue.add (x, currentY, width, 1, c);
         }
 
@@ -1102,7 +1119,7 @@ struct StateHelpers
         void handleEdgeTableRectangle (int x, int y, int width, int height, int alphaLevel) noexcept
         {
             auto c = colour;
-            c.multiplyAlpha (alphaLevel);
+            c.multiplyAlpha (remapAlphaLevel (alphaLevel));
             quadQueue.add (x, y, width, height, c);
         }
 
@@ -1112,8 +1129,16 @@ struct StateHelpers
         }
 
     private:
+        int remapAlphaLevel (int alphaLevel) const noexcept
+        {
+            return glyphGammaLookup != nullptr
+                     ? (*glyphGammaLookup)[(size_t) jlimit (0, 255, alphaLevel)]
+                     : alphaLevel;
+        }
+
         QuadQueueType& quadQueue;
         const PixelARGB colour;
+        const std::array<uint8, 256>* const glyphGammaLookup;
         int currentY;
 
         JUCE_DECLARE_NON_COPYABLE (EdgeTableRenderer)
@@ -1435,9 +1460,10 @@ struct StateHelpers
         }
 
         template <typename IteratorType>
-        void add (const IteratorType& et, PixelARGB colour)
+        void add (const IteratorType& et, PixelARGB colour,
+                  const std::array<uint8, 256>* glyphGammaLookup = nullptr)
         {
-            EdgeTableRenderer<ShaderQuadQueue> etr (*this, colour);
+            EdgeTableRenderer<ShaderQuadQueue> etr (*this, colour, glyphGammaLookup);
             et.iterate (etr);
         }
 
@@ -1821,8 +1847,10 @@ struct SavedState final : public RenderingHelpers::SavedStateBase<SavedState>
 
     SavedState (const SavedState& other)
         : BaseClass (other), font (other.font), state (other.state),
+          applyGlyphGammaCorrection (other.applyGlyphGammaCorrection),
           transparencyLayer (other.transparencyLayer),
-          previousTarget (createCopyIfNotNull (other.previousTarget.get()))
+          previousTarget (createCopyIfNotNull (other.previousTarget.get())),
+          glyphGammaLookup (other.glyphGammaLookup)
     {}
 
     std::unique_ptr<SavedState> beginTransparencyLayer (float opacity)
@@ -1906,7 +1934,7 @@ struct SavedState final : public RenderingHelpers::SavedStateBase<SavedState>
             state->setShader (state->currentShader.programs->solidColourProgram);
         }
 
-        state->shaderQuadQueue.add (iter, colour);
+        state->shaderQuadQueue.add (iter, colour, applyGlyphGammaCorrection ? &glyphGammaLookup : nullptr);
     }
 
     template <typename IteratorType>
@@ -1931,10 +1959,12 @@ struct SavedState final : public RenderingHelpers::SavedStateBase<SavedState>
     Font font { FontOptions{} };
     GLState* state;
     bool isUsingCustomShader = false;
+    bool applyGlyphGammaCorrection = false;
 
 private:
     Image transparencyLayer;
     std::unique_ptr<Target> previousTarget;
+    std::array<uint8, 256> glyphGammaLookup = makeGlyphGammaLookup (defaultGlyphCoverageGamma);
 
     SavedState& operator= (const SavedState&);
 };
@@ -1943,9 +1973,20 @@ private:
 //==============================================================================
 struct ShaderContext final : public RenderingHelpers::StackBasedLowLevelGraphicsContext<SavedState>
 {
+    using BaseClass = RenderingHelpers::StackBasedLowLevelGraphicsContext<SavedState>;
+
     explicit ShaderContext (const Target& target)  : glState (target)
     {
         stack.initialise (new SavedState (&glState));
+    }
+
+    void drawGlyphs (Span<const uint16_t> glyphs,
+                     Span<const Point<float>> positions,
+                     const AffineTransform& t) override
+    {
+        stack->applyGlyphGammaCorrection = true;
+        const ScopeGuard resetApplyGlyphGammaCorrection { [this] { stack->applyGlyphGammaCorrection = false; } };
+        BaseClass::drawGlyphs (glyphs, positions, t);
     }
 
     void fillRectWithCustomShader (ShaderPrograms::ShaderBase& shader, Rectangle<int> area)
