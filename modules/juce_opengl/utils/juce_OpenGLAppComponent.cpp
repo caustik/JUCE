@@ -64,7 +64,7 @@ void OpenGLAppComponent::newOpenGLContextCreated()
     initialise();
 }
 
-void OpenGLAppComponent::renderOpenGL(std::function<void()> componentContext)
+void OpenGLAppComponent::renderOpenGL(std::function<void()>)
 {
     ++frameCounter;
     render();
